@@ -1,0 +1,13 @@
+phase_num,phase,format,files_added,files_removed
+1,Create Table,delta,5468,0
+2,Upsert Medium Data,delta,92,0
+3,Delete Extra Small Data,delta,19,76
+4,Delete Small Data,delta,19,19
+5,Delete Medium Data,delta,61,238
+6,GDPR Request,delta,93,74
+1,Create Table,iceberg,5468,0
+2,Upsert Medium Data,iceberg,92000,0
+3,Delete Extra Small Data,iceberg,19000,76
+4,Delete Small Data,iceberg,9519,19000
+5,Delete Medium Data,iceberg,61000,34207
+6,GDPR Request,iceberg,106,106

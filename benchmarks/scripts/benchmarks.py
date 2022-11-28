@@ -117,6 +117,33 @@ class TPCDSBenchmarkSpec(BenchmarkSpec):
         ])
 
 
+class ETLBenchmarkSpec(BenchmarkSpec):
+    """
+    Specifications of ETL benchmark
+    """
+    def __init__(self, scale_in_gb, write_mode, **kwargs):
+        # forward all keyword args to next constructor
+        super().__init__(benchmark_main_class="benchmark.ETLBenchmark", **kwargs)
+        # after init of super class, use the format to add main class args
+        self.benchmark_main_class_args.extend([
+            "--format", self.format_name,
+            "--scale-in-gb", str(scale_in_gb)
+        ])
+
+class ETLDataPrepSpec(BenchmarkSpec):
+    """
+    Specifications of ETL benchmark data preparation process.
+    """
+    def __init__(self, scale_in_gb, exclude_nulls=True, **kwargs):
+        # forward all keyword args to next constructor
+        super().__init__(benchmark_main_class="benchmark.ETLDataPrep", **kwargs)
+        self.benchmark_main_class_args.extend([
+            "--format", self.format_name,
+            "--scale-in-gb", str(scale_in_gb),
+        ])
+        # To access the public TPCDS parquet files on S3
+        self.spark_confs.extend(["spark.hadoop.fs.s3.useRequesterPaysHeader=true"])
+
 
 # ============== Delta benchmark specifications ==============
 
@@ -164,6 +191,46 @@ class DeltaTPCDSBenchmarkSpec(TPCDSBenchmarkSpec, DeltaBenchmarkSpec):
         super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb)
 
 
+class DeltaETLBenchmarkSpec(ETLBenchmarkSpec, DeltaBenchmarkSpec):
+    def __init__(self, delta_version, scale_in_gb=1, write_mode="copy-on-write"):
+        super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode)
+
+
+
+# ============== Iceberg benchmark specifications ==============
+
+
+class IcebergBenchmarkSpec(BenchmarkSpec):
+    """
+    Specification of a benchmark using the Iceberg format
+    """
+    def __init__(self, iceberg_version, benchmark_main_class, main_class_args=None, **kwargs):
+        iceberg_spark_confs = [
+          "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+          "spark.sql.catalog.ice=org.apache.iceberg.spark.SparkCatalog",
+          "spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog",
+          "spark.sql.catalog.spark_catalog.type=hive",
+          "spark.sql.catalog.ice.io-impl=org.apache.iceberg.aws.s3.S3FileIO"
+        ]
+
+        iceberg_artifact_name = "iceberg-spark3-runtime"
+        if iceberg_version.startswith("0.14") or iceberg_version.startswith("1.0"):
+            iceberg_artifact_name = "iceberg-spark-runtime-3.3_2.12"
+
+        super().__init__(
+            format_name="iceberg",
+            maven_artifacts=f"org.apache.iceberg:{iceberg_artifact_name}:{iceberg_version},org.apache.iceberg:iceberg-hive-runtime:{iceberg_version}",
+            spark_confs=iceberg_spark_confs,
+            benchmark_main_class=benchmark_main_class,
+            main_class_args=main_class_args,
+            **kwargs
+        )
+
+class IcebergETLBenchmarkSpec(ETLBenchmarkSpec, IcebergBenchmarkSpec):
+    def __init__(self, iceberg_version, scale_in_gb=1, write_mode="copy-on-write"):
+        super().__init__(iceberg_version=iceberg_version, scale_in_gb=scale_in_gb, write_mode=write_mode)
+
+
 # ============== Parquet benchmark specifications ==============
 
 
@@ -187,6 +254,10 @@ class ParquetTPCDSDataLoadSpec(TPCDSDataLoadSpec, ParquetBenchmarkSpec):
 
 
 class ParquetTPCDSBenchmarkSpec(TPCDSBenchmarkSpec, ParquetBenchmarkSpec):
+    def __init__(self, scale_in_gb=1):
+        super().__init__(scale_in_gb=scale_in_gb)
+
+class ParquetETLDataPrepSpec(ETLDataPrepSpec, ParquetBenchmarkSpec):
     def __init__(self, scale_in_gb=1):
         super().__init__(scale_in_gb=scale_in_gb)
 

@@ -19,7 +19,8 @@
 import argparse
 from scripts.benchmarks import *
 
-delta_version = "2.0.0"
+delta_version = "2.1.0"
+iceberg_version = "0.14.1"
 
 # Benchmark name to their specifications. See the imported benchmarks.py for details of benchmark.
 
@@ -42,6 +43,19 @@ benchmarks = {
     "tpcds-3tb-delta": DeltaTPCDSBenchmarkSpec(delta_version=delta_version, scale_in_gb=3000),
     "tpcds-1gb-parquet": ParquetTPCDSBenchmarkSpec(scale_in_gb=1),
     "tpcds-3tb-parquet": ParquetTPCDSBenchmarkSpec(scale_in_gb=3000),
+
+    # ETL data preparation - Data Prep is Parquet only
+    "etl-1gb-parquet-prep": ParquetETLDataPrepSpec(scale_in_gb=1),
+    "etl-1tb-parquet-prep": ParquetETLDataPrepSpec(scale_in_gb=1000),
+    "etl-3tb-parquet-prep": ParquetETLDataPrepSpec(scale_in_gb=3000),
+
+    # ETL benchmark
+    #  NB: Cannot run ETL operations on Parquet tables
+    "etl-1gb-delta": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1),
+    "etl-1tb-delta": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1000),
+
+    "etl-1gb-iceberg": IcebergETLBenchmarkSpec(iceberg_version=iceberg_version, scale_in_gb=1),
+    "etl-1tb-iceberg": IcebergETLBenchmarkSpec(iceberg_version=iceberg_version, scale_in_gb=1000),
 
 }
 
