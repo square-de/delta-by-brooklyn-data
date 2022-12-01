@@ -69,6 +69,11 @@ object ETLBenchmarkConf {
         .valueName("<number of iterations>")
         .action((x, c) => c.copy(iterations = x.toInt))
         .text("Number of times to run the queries"),
+      opt[String]("db-name")
+        .optional()
+        .valueName("<database name>")
+        .action((x, c) => c.copy(userDefinedDbName = Some(x)))
+        .text("Name of the target database to create with ETL Prep tables in necessary format"),
       opt[String]("write_mode")
         .optional()
         .valueName("<copy-on-write or merge-on-read>")
@@ -88,14 +93,29 @@ class ETLBenchmark(conf: ETLBenchmarkConf) extends Benchmark(conf) {
   val sourceFormat = "parquet"
   val formatName = conf.formatName
   val writeMode = conf.writeMode
-  val tblProperties = if (formatName == "iceberg") {
-    s"""TBLPROPERTIES ('format-version'='2',
+  val tblProperties = formatName match {
+    case "iceberg" =>
+      s"""TBLPROPERTIES ('format-version'='2',
                        'write.delete.mode'='${writeMode}',
                        'write.update.mode'='${writeMode}',
                        'write.merge.mode'='${writeMode}')"""
-  } else {
-    ""
+    case "hudi" =>
+      // NOTE: This is only used to create single (denormalized) store_sales table;
+      //       as such we're reusing primary key we're generally using for store_sales in TPC-DS benchmarks
+      s"""TBLPROPERTIES (
+         |  type = '${if (writeMode == "copy-on-write") "cow" else "mor"}',
+         |  primaryKey = 'ss_item_sk,ss_ticket_number',
+         |  preCombineField = 'ss_sold_time_sk',
+         |  'hoodie.table.name' = 'store_sales_denorm_${formatName}',
+         |  'hoodie.table.partition.fields' = 'ss_sold_date_sk',
+         |  'hoodie.table.keygenerator.class' = 'org.apache.hudi.keygen.ComplexKeyGenerator',
+         |  'hoodie.parquet.compression.codec' = 'snappy',
+         |  'hoodie.datasource.write.hive_style_partitioning' = 'true'
+         |)""".stripMargin
+
+    case "delta" => ""
   }
+
   require(conf.scaleInGB > 0)
   require(Seq(1, 1000, 3000).contains(conf.scaleInGB), "")
   val sourceLocation = conf.sourcePath.getOrElse {
@@ -140,7 +160,7 @@ class ETLBenchmark(conf: ETLBenchmarkConf) extends Benchmark(conf) {
     val results = getQueryResults().filter(_.name.startsWith("q"))
     if (results.forall(x => x.errorMsg.isEmpty && x.durationMs.nonEmpty) ) {
       val medianDurationSecPerQuery = results.groupBy(_.name).map { case (q, results) =>
-        log("Queries Completed. Checking size: ")
+        log(s"Queries Completed. Checking size: ${results.length}")
         assert(results.size == conf.iterations)
         val medianMs = results.map(_.durationMs.get).sorted
             .drop(math.floor(conf.iterations / 2.0).toInt).head
