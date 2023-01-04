@@ -110,7 +110,10 @@ class ETLBenchmark(conf: ETLBenchmarkConf) extends Benchmark(conf) {
          |  'hoodie.table.partition.fields' = 'ss_sold_date_sk',
          |  'hoodie.table.keygenerator.class' = 'org.apache.hudi.keygen.ComplexKeyGenerator',
          |  'hoodie.parquet.compression.codec' = 'snappy',
-         |  'hoodie.datasource.write.hive_style_partitioning' = 'true'
+         |  'hoodie.datasource.write.hive_style_partitioning' = 'true',
+         |  'hoodie.sql.insert.mode'= 'non-strict',
+         |  'hoodie.sql.bulk.insert.enable' = 'true',
+         |  'hoodie.combine.before.insert' = 'false'
          |)""".stripMargin
 
     case "delta" => ""
