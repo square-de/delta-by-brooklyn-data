@@ -196,6 +196,34 @@ class DeltaETLBenchmarkSpec(ETLBenchmarkSpec, DeltaBenchmarkSpec):
         super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode)
 
 
+# ============== Hudi benchmark specifications ==============
+
+
+class HudiBenchmarkSpec(BenchmarkSpec):
+    """
+    Specification of a benchmark using the Hudi format
+    """
+    def __init__(self, hudi_version, benchmark_main_class, main_class_args=None, **kwargs):
+        hudi_spark_confs = [
+            "spark.serializer=org.apache.spark.serializer.KryoSerializer",
+            "spark.sql.extensions=org.apache.spark.sql.hudi.HoodieSparkSessionExtension",
+            "spark.sql.catalog.spark_catalog=org.apache.spark.sql.hudi.catalog.HoodieCatalog",
+            "spark.sql.catalog.spark_catalog.type=hive",
+        ]
+
+        super().__init__(
+            format_name="hudi",
+            maven_artifacts=f"org.apache.hudi:hudi-spark3.3-bundle_2.12:{hudi_version}",
+            spark_confs=hudi_spark_confs,
+            benchmark_main_class=benchmark_main_class,
+            main_class_args=main_class_args,
+            **kwargs
+        )
+
+class HudiETLBenchmarkSpec(ETLBenchmarkSpec, HudiBenchmarkSpec):
+    def __init__(self, hudi_version, scale_in_gb=1, write_mode="copy-on-write"):
+        super().__init__(hudi_version=hudi_version, scale_in_gb=scale_in_gb, write_mode=write_mode)
+
 
 # ============== Iceberg benchmark specifications ==============
 
