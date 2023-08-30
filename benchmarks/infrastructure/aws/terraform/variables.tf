@@ -56,6 +56,11 @@ variable "user_ip_address" {
   type        = string
 }
 
+variable "user_ip_address_2" {
+  description = "The IP of the machine which is used to access master node."
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags assigned to each resource."
   type        = map(string)

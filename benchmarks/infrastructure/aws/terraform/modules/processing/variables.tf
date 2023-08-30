@@ -41,3 +41,6 @@ variable "emr_workers" {
 variable "user_ip_address" {
   type = string
 }
+variable "user_ip_address_2" {
+  type = string
+}

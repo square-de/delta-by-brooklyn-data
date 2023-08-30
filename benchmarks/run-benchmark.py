@@ -17,9 +17,10 @@
 #
 
 import argparse
+
 from scripts.benchmarks import *
 
-delta_version = "2.1.0"
+delta_version = "2.3.0"
 iceberg_version = "0.14.1"
 hudi_version = "0.12.2"
 

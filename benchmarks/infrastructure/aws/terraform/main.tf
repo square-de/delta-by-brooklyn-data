@@ -26,6 +26,8 @@ module "processing" {
   emr_public_key_path    = var.emr_public_key_path
   emr_workers            = var.emr_workers
   user_ip_address        = var.user_ip_address
+  user_ip_address_2        = var.user_ip_address_2
+
 
   depends_on = [module.networking, module.storage]
 }
