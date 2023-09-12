@@ -25,8 +25,8 @@ resource "aws_key_pair" "benchmarks" {
 
 resource "aws_emr_cluster" "benchmarks" {
   name                              = "delta_performance_benchmarks_cluster"
-  release_label                     = "emr-6.11.1"
-  applications                      = ["Spark", "Hive"]
+  release_label                     = "emr-6.12.0"
+  applications                      = ["Spark", "Hive", "JupyterHub"]
   termination_protection            = false
   keep_job_flow_alive_when_no_steps = true
   ec2_attributes {
@@ -38,11 +38,11 @@ resource "aws_emr_cluster" "benchmarks" {
   }
   master_instance_group {
     # instance_type = "i3.2xlarge"
-    instance_type = "m6g.2xlarge"
+    instance_type = "m6g.xlarge"
   }
   core_instance_group {
     # instance_type  = "i3.2xlarge"
-    instance_type  = "m6g.2xlarge"
+    instance_type  = "m6g.xlarge"
     instance_count = var.emr_workers
   }
 
@@ -265,7 +265,8 @@ resource "aws_iam_role_policy" "benchmarks_iam_emr_profile_policy" {
             "Effect": "Allow",
             "Resource": "arn:aws:s3:::${var.source_bucket_name}/*",
             "Action": [
-                "s3:GetObject"
+                "s3:GetObject",
+                "s3:PutObject"
             ]
         },
         {
