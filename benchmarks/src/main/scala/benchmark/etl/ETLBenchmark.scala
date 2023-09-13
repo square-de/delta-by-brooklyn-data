@@ -153,12 +153,22 @@ class ETLBenchmark(conf: ETLBenchmarkConf) extends Benchmark(conf) {
         runQuery(s"DESCRIBE HISTORY store_sales_denorm_${formatName}",
           printRows = true, queryName = s"${name}-file-stats")
       }
-      // Run read queries
-      for (iteration <- 1 to conf.iterations) {
-        readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
-          runQuery(sql, iteration = Some(iteration), queryName = name)
-        }
+
+      // TODO: 只有在 writeQueries 是 "etl6-deleteGdpr" 才需要進行查詢測試
+      val needRunReadQueryName = List("etl6-deleteGdpr")
+      if (needRunReadQueryName.contains(name)) {
+            // Run read queries
+          for (iteration <- 1 to conf.iterations) {
+            readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
+              runQuery(sql, iteration = Some(iteration), queryName = name)
+            }
+          }
+      } else {
+          log(s"Skipping executing read queries for ${name}")
       }
+
+
+
     }
     val results = getQueryResults().filter(_.name.startsWith("q"))
     if (results.forall(x => x.errorMsg.isEmpty && x.durationMs.nonEmpty) ) {
