@@ -14,9 +14,10 @@
 # limitations under the License.
 #
 
-from scripts.utils import *
-from datetime import datetime
 import time
+from datetime import datetime
+
+from scripts.utils import *
 
 
 class BenchmarkSpec:
@@ -121,13 +122,14 @@ class ETLBenchmarkSpec(BenchmarkSpec):
     """
     Specifications of ETL benchmark
     """
-    def __init__(self, scale_in_gb, write_mode, **kwargs):
+    def __init__(self, scale_in_gb, write_mode, experiment=None, **kwargs):
         # forward all keyword args to next constructor
         super().__init__(benchmark_main_class="benchmark.ETLBenchmark", **kwargs)
         # after init of super class, use the format to add main class args
         self.benchmark_main_class_args.extend([
             "--format", self.format_name,
-            "--scale-in-gb", str(scale_in_gb)
+            "--scale-in-gb", str(scale_in_gb),
+            "--experiment", experiment
         ])
 
 class ETLDataPrepSpec(BenchmarkSpec):
@@ -192,8 +194,8 @@ class DeltaTPCDSBenchmarkSpec(TPCDSBenchmarkSpec, DeltaBenchmarkSpec):
 
 
 class DeltaETLBenchmarkSpec(ETLBenchmarkSpec, DeltaBenchmarkSpec):
-    def __init__(self, delta_version, scale_in_gb=1, write_mode="copy-on-write"):
-        super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode)
+    def __init__(self, delta_version, scale_in_gb=1, write_mode="copy-on-write", experiment="control"):
+        super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode, experiment=experiment)
 
 
 # ============== Hudi benchmark specifications ==============

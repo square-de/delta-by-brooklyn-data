@@ -39,6 +39,11 @@ resource "aws_emr_cluster" "benchmarks" {
   master_instance_group {
     # instance_type = "i3.2xlarge"
     instance_type = "m6g.xlarge"
+    ebs_config {
+      size                 = "150"
+      type                 = "gp2"
+      volumes_per_instance = 1
+    }
   }
   core_instance_group {
     # instance_type  = "i3.2xlarge"

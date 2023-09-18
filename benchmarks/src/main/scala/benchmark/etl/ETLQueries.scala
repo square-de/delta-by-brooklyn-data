@@ -80,7 +80,7 @@ class ETLQueries(
       SELECT *
         FROM store_sales_denorm
        WHERE MOD(ss_sold_date_sk, 2) = 0
-         AND MOD(ss_sold_time_sk, 5) = 0 
+         AND MOD(ss_sold_time_sk, 5) = 0
          AND ss_sold_date_sk > 2452459
       DISTRIBUTE BY ss_sold_date_sk
       """,
@@ -145,6 +145,8 @@ class ETLQueries(
       DISTRIBUTE BY ss_sold_date_sk
       """
   )
+      // PARTITIONED BY (ss_sold_date_sk)
+      //  DISTRIBUTE BY ss_sold_date_sk
 
   val writeQueries: Map[String, String] = Map(
     // Step 1 - Bulk load the starting point table
@@ -156,6 +158,8 @@ class ETLQueries(
       PARTITIONED BY (ss_sold_date_sk)
       ${tblProperties}
       AS SELECT * FROM `${sourceFormat}`.`${sourceLocation}store_sales_denorm_start`
+         DISTRIBUTE BY ss_sold_date_sk
+
       """,
     // Step 2 - Add the Medium Upsert data into the table
     "etl2-upsertMedium" ->
@@ -202,6 +206,29 @@ class ETLQueries(
     "etl6-deleteGdpr" ->
       s"""
       DELETE FROM store_sales_denorm_${formatName} WHERE c_customer_sk = 221580
+      """
+    )
+  val compactionWriteQueries: Map[String, String] = Map(
+    // Step 7 - 進行 compaction
+    "etl7-compaction" ->
+      s"""
+      OPTIMIZE store_sales_denorm_${formatName}
+      """
+    )
+
+  val zorderWriteQueries: Map[String, String] = Map(
+    // Step 8 - 進行 zorder
+    "etl8-zorder" ->
+      s"""
+      OPTIMIZE store_sales_denorm_${formatName} ZORDER BY (i_manufact_id)
+      """
+    )
+    // TODO: 需要設定資料保留時間=0d
+  val vacuumWriteQueries: Map[String, String] = Map(
+    // Step 9 - 進行 vacuum
+    "etl9-zorder" ->
+      s"""
+      VACUUM store_sales_denorm_${formatName}
       """
     )
 

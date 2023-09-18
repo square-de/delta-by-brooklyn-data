@@ -24,6 +24,11 @@ delta_version = "2.4.0"
 iceberg_version = "0.14.1"
 hudi_version = "0.12.2"
 
+experiment_type_compaction = "compaction"
+experiment_type_zorder = "zorder"
+experiment_type_vacuum = "vacuum"
+experiment_type_all = "all"
+
 # Benchmark name to their specifications. See the imported benchmarks.py for details of benchmark.
 
 benchmarks = {
@@ -54,7 +59,13 @@ benchmarks = {
     # ETL benchmark
     #  NB: Cannot run ETL operations on Parquet tables
     "etl-1gb-delta": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1),
+    "etl-1gb-delta-compaction": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_compaction),
+    "etl-1gb-delta-zorder": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_zorder),
+    "etl-1gb-delta-vacuum": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_vacuum),
+    "etl-1gb-delta-all": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_all),
+
     "etl-1tb-delta": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1000),
+
 
     "etl-1gb-hudi": HudiETLBenchmarkSpec(hudi_version=hudi_version, scale_in_gb=1),
     "etl-1tb-hudi": HudiETLBenchmarkSpec(hudi_version=hudi_version, scale_in_gb=1000),
