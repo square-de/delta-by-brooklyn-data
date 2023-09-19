@@ -16,7 +16,9 @@
 
 package benchmark
 
+import mrpowers.jodie.DeltaHelpers
 import io.delta.tables.DeltaTable
+import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.DataFrame
 import org.apache.hadoop.fs.{FileSystem, Path}
 
@@ -27,7 +29,7 @@ trait ETLStreamingConf extends BenchmarkConf {
   def formatName: String = format.getOrElse {
     throw new IllegalArgumentException("format must be specified")
   }
-  def dbName: String = userDefinedDbName.getOrElse(s"etl_sf${scaleInGB}_${formatName}")
+  def dbName: String = userDefinedDbName.getOrElse(s"sts_etl_sf${scaleInGB}_${formatName}")
   def dbLocation: String = dbLocation(dbName)
   def customWriteMode: Option[String]
   def writeMode: String = customWriteMode.getOrElse("copy-on-write")
@@ -109,7 +111,7 @@ object ETLStreamingBenchmarkConf {
 class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(conf) {
   val dbName = conf.dbName
   val dbLocation = conf.dbLocation(dbName, suffix=benchmarkId.replace("-", "_"))
-  val sourceFormat = "parquet"
+  val sourceFormat = "delta"
   val formatName = conf.formatName
   val writeMode = conf.writeMode
   val experiment = conf.experiment
@@ -153,13 +155,17 @@ class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(c
     "spark.sql.broadcastTimeout" -> "7200",
     "spark.sql.crossJoin.enabled" -> "true"
   )
+  // create sourceDbName variable by extract sourceLocation last folder name (eg. s3://your-default-bucket/path-to-parquet/etl_sf1g_parquet/) => etl_sf1g_parquet
+  val sourceDbName = sourceLocation.split("/").last
 
-  val etlQueries = new ETLQueries(dbLocation, formatName, sourceLocation, sourceFormat, tblProperties)
+  val etlQueries = new ETLStreamingQueries(dbLocation, formatName, sourceLocation, sourceFormat, tblProperties)
   val writeQueries: Map[String, String] = etlQueries.writeQueries
   val readQueries: Map[String, String] = etlQueries.readQueries
   val compactionWriteQueries: Map[String, String] = etlQueries.compactionWriteQueries
   val zorderWriteQueries: Map[String, String] = etlQueries.zorderWriteQueries
   val vacuumWriteQueries: Map[String, String] = etlQueries.vacuumWriteQueries
+
+  val outputTableName = s"clone_store_sales_denorm_${formatName}"
 
   // TODO: 根據參數決定 batch job 的實驗項目 (origin/compaction/zorder/vacuum/all) 準備對應的 writeQueries
   // 請根據實驗項目 experiment 的不同，將對應的 writeQueries (compactionWriteQueries|zorderWriteQueries|vacuumWriteQueries)結合 writeQueries 指派給 batchJobWriteQueries
@@ -180,11 +186,6 @@ class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(c
 
     runQuery(s"DROP DATABASE IF EXISTS ${dbName} CASCADE", s"etl0.1-drop-database")
     runQuery(s"CREATE DATABASE IF NOT EXISTS ${dbName}", s"etl0.2-create-database")
-    runQuery(s"USE $dbName", s"etl0.3-use-database")
-    runQuery(s"DROP TABLE IF EXISTS store_sales_denorm_${formatName}", s"etl0.4-drop-table")
-
-    // TODO: 刪除 checkpoint 與 clone table
-    runQuery(s"DROP TABLE IF EXISTS clone_store_sales_denorm_${formatName}", s"etl0.5-drop-table")
 
     // delete spark checkpoint folder in hdfs path `checkpoints/${dbName}/delta_cdf_data_checkpoint`
     log(s"delete spark checkpoint folder in hdfs path ${checkpointHdfsLocation}")
@@ -194,58 +195,69 @@ class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(c
       fs.delete(new Path(checkpointHdfsLocation), true)
     }
 
+    // 測試查詢上游 Table 的速度
+    // Run read queries
+    for (iteration <- 1 to conf.iterations) {
+      readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
+        val source_path_sql = sql.replace(s"store_sales_denorm_${formatName}", s"${formatName}.`${sourceLocation}store_sales_denorm`")
+        runQuery(source_path_sql, iteration = Some(iteration), queryName = name)
+      }
+    }
 
-
+    runQuery(s"USE $dbName", s"etl0.3-use-database")
     writeQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
       runQuery(sql, iteration = Some(1), queryName = name)
       // Print table stats
       if (conf.formatName == "iceberg") {
-        runQuery(s"SELECT * FROM spark_catalog.${dbName}.store_sales_denorm_${formatName}.snapshots",
+        runQuery(s"SELECT * FROM spark_catalog.clone_${dbName}.store_sales_denorm_${formatName}.snapshots",
           printRows = true, queryName = s"${name}-file-stats")
       } else if (conf.formatName == "delta") {
-        runQuery(s"DESCRIBE HISTORY store_sales_denorm_${formatName}",
+        runQuery(s"DESCRIBE HISTORY ${formatName}.`${sourceLocation}store_sales_denorm`",
           printRows = true, queryName = s"${name}-file-stats")
       }
-
-      // TODO: 只有在 writeQueries 是 "etl6-deleteGdpr" 才需要進行查詢測試
-      // val needRunReadQueryName = List("etl6-deleteGdpr")
-      // if (needRunReadQueryName.contains(name)) {
-      //       // Run read queries
-      //     for (iteration <- 1 to conf.iterations) {
-      //       readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
-      //         runQuery(sql, iteration = Some(iteration), queryName = name)
-      //       }
-      //     }
-      // } else {
-      //     log(s"Skipping executing read queries for ${name}")
-      // }
     }
 
     // TODO: 根據參數決定 streaming job 的實驗項目(origin/compaction/zorder/vacuum/all) 與執行時機點 (batch/foreachBatch) 準備對應的 readStream
-    log(s"Start streaming job from ${dbLocation}/store_sales_denorm_${formatName} to ${dbLocation}/clone_store_sales_denorm_${formatName}")
+    log(s"Start streaming job from ${sourceLocation} to ${dbLocation}${outputTableName} and optimizeTiming is ${optimizeTiming} ")
     streamingQueryDeltaCdfData()
 
-    log(s"Execute optimize job...")
+    val deltaTable = DeltaTable.forName(outputTableName)
+    displayDeltaFileSize(deltaTable,operationName="streaming save")
 
-    optimizeQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
-      runQuery(sql, iteration = Some(1), queryName = name)
-      // Print table stats
-      if (conf.formatName == "iceberg") {
-        runQuery(s"SELECT * FROM spark_catalog.${dbName}.store_sales_denorm_${formatName}.snapshots",
-          printRows = true, queryName = s"${name}-file-stats")
-      } else if (conf.formatName == "delta") {
-        runQuery(s"DESCRIBE HISTORY clone_store_sales_denorm_${formatName}",
-          printRows = true, queryName = s"${name}-file-stats")
+    // Run read queries
+    for (iteration <- 1 to conf.iterations) {
+      readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
+        // 修改 sql 的查詢 table 為 clone_store_sales_denorm_${formatName}
+        val clone_sql = sql.replace(s"store_sales_denorm_${formatName}", s"${outputTableName}")
+        runQuery(clone_sql, iteration = Some(iteration), queryName = name)
       }
+    }
 
-      // Run read queries
-      for (iteration <- 1 to conf.iterations) {
-        readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
-          // 修改 sql 的查詢 table 為 clone_store_sales_denorm_${formatName}
-          val clone_sql = sql.replace(s"store_sales_denorm_${formatName}", s"clone_store_sales_denorm_${formatName}")
-          runQuery(clone_sql, iteration = Some(iteration), queryName = name)
+    // run optimizeQueries when optimizeTiming is batch
+    if (optimizeTiming == Some("batch")) {
+        log(s"Execute optimize job...")
+        optimizeQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
+          runQuery(sql, iteration = Some(1), queryName = name)
+          // Print table stats
+          if (conf.formatName == "iceberg") {
+            runQuery(s"SELECT * FROM spark_catalog.${dbName}.store_sales_denorm_${formatName}.snapshots",
+              printRows = true, queryName = s"${name}-file-stats")
+          } else if (conf.formatName == "delta") {
+            runQuery(s"DESCRIBE HISTORY clone_store_sales_denorm_${formatName}",
+              printRows = true, queryName = s"${name}-file-stats")
+          }
+
+          displayDeltaFileSize(deltaTable,operationName=name)
+
+          // Run read queries
+          for (iteration <- 1 to conf.iterations) {
+            readQueries.toSeq.sortBy(_._1).foreach { case (name, sql) =>
+              // 修改 sql 的查詢 table 為 clone_store_sales_denorm_${formatName}
+              val clone_sql = sql.replace(s"store_sales_denorm_${formatName}", s"${outputTableName}")
+              runQuery(clone_sql, iteration = Some(iteration), queryName = name)
+            }
+          }
         }
-      }
     }
 
     val results = getQueryResults().filter(_.name.startsWith("q"))
@@ -270,10 +282,29 @@ class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(c
   }
 
 
+  def displayDeltaFileSize(deltaTable: DeltaTable, operationName: String): Unit = {
+    log(s"Displaying Delta File Sizes for ${outputTableName} after performing the ${operationName} operation: ")
+    val fileSizeInfo = DeltaHelpers.deltaFileSizes(deltaTable)
+    for ((k,v) <- fileSizeInfo) println(s"$k: $v")
+  }
 
   // Function to upsert microBatchOutputDF into Delta table using merge
   def upsertToDelta(microBatchOutputDF: DataFrame, batchId: Long): Unit = {
-    val downstreamDeltaTable = DeltaTable.forName(spark, s"clone_store_sales_denorm_${formatName}")
+    val downstreamDeltaTable = DeltaTable.forName(spark, s"${outputTableName}")
+
+    downstreamDeltaTable.as("t")
+      .merge(
+        microBatchOutputDF.as("s"),
+        "s.ss_sold_date_sk = t.ss_sold_date_sk AND s.ss_item_sk = t.ss_item_sk AND s.ss_ticket_number = t.ss_ticket_number")
+      .whenMatched("s._change_type = 'delete'").delete()
+      .whenMatched("s._change_type = 'update_postimage'").updateAll()
+      .whenNotMatched("s._change_type != 'delete'").insertAll()
+      .execute()
+  }
+
+    // Function to upsert microBatchOutputDF into Delta table using merge
+  def upsertToDeltaAndOptimize(microBatchOutputDF: DataFrame, batchId: Long): Unit = {
+    val downstreamDeltaTable = DeltaTable.forName(spark, s"${outputTableName}")
 
     downstreamDeltaTable.as("t")
       .merge(
@@ -287,18 +318,25 @@ class ETLStreamingBenchmark(conf: ETLStreamingBenchmarkConf) extends Benchmark(c
 
   // create function for streaming query delta cdf data and write to another delta table by foreachBatch
   def streamingQueryDeltaCdfData(): Unit = {
+
+    // assign UpsertFunc value by optimizeTiming when optimizeTiming is streaming assign to upsertToDeltaAndOptimize, otherwise assign upsertToDelta
+    val UpsertFunction = optimizeTiming match {
+      case Some("streaming") => upsertToDeltaAndOptimize _
+      case _ => upsertToDelta _
+    }
+
     val deltaCdfData = spark.readStream.format("delta")
       .option("readChangeFeed", "true")
       .option("maxFilesPerTrigger", 10)
-      .table(s"store_sales_denorm_${formatName}")
+      .load(s"${sourceLocation}store_sales_denorm")
 
-    deltaCdfData.printSchema()
     log(s"checkpointLocation in hdfs path: ${checkpointHdfsLocation}")
 
     deltaCdfData.writeStream
       .format("delta")
       .option("checkpointLocation", checkpointHdfsLocation)
-      .foreachBatch(upsertToDelta _)
+      .foreachBatch(UpsertFunction)
+      .trigger(Trigger.AvailableNow())
       .start()
       .awaitTermination()
   }

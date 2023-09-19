@@ -161,6 +161,19 @@ class ETLDataPrepSpec(BenchmarkSpec):
         # To access the public TPCDS parquet files on S3
         self.spark_confs.extend(["spark.hadoop.fs.s3.useRequesterPaysHeader=true"])
 
+class ETLStreamingDataPrepSpec(BenchmarkSpec):
+    """
+    Specifications of ETL benchmark data preparation process.
+    """
+    def __init__(self, scale_in_gb, exclude_nulls=True, **kwargs):
+        # forward all keyword args to next constructor
+        super().__init__(benchmark_main_class="benchmark.ETLStreamingDataPrep", **kwargs)
+        self.benchmark_main_class_args.extend([
+            "--format", self.format_name,
+            "--scale-in-gb", str(scale_in_gb),
+        ])
+        # To access the public TPCDS parquet files on S3
+        self.spark_confs.extend(["spark.hadoop.fs.s3.useRequesterPaysHeader=true"])
 
 # ============== Delta benchmark specifications ==============
 
@@ -310,6 +323,9 @@ class ParquetETLDataPrepSpec(ETLDataPrepSpec, ParquetBenchmarkSpec):
     def __init__(self, scale_in_gb=1):
         super().__init__(scale_in_gb=scale_in_gb)
 
+class DeltaETLDataPrepSpec(ETLStreamingDataPrepSpec, DeltaBenchmarkSpec):
+    def __init__(self, delta_version, scale_in_gb=1):
+        super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb)
 
 # ============== General benchmark execution ==============
 

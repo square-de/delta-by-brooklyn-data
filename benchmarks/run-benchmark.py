@@ -67,6 +67,8 @@ benchmarks = {
     "etl-1gb-delta-all": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_all),
 
     # streaming optimization experiment
+    "sts-etl-1gb-delta-prep": DeltaETLDataPrepSpec(delta_version=delta_version, scale_in_gb=1),
+
     "sts-etl-1gb-delta": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, optimize_timing=optimize_timing_batch),
     "sts-etl-1gb-delta-batch-compaction": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_compaction, optimize_timing=optimize_timing_batch),
     "sts-etl-1gb-delta-batch-zorder": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_zorder, optimize_timing=optimize_timing_batch),

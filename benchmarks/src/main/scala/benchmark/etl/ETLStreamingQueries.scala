@@ -16,7 +16,7 @@
 
 package benchmark
 
-class ETLQueries(
+class ETLStreamingQueries(
         dbLocation: String,
         formatName: String,
         sourceLocation: String,
@@ -145,10 +145,9 @@ class ETLQueries(
       DISTRIBUTE BY ss_sold_date_sk
       """
   )
-      // PARTITIONED BY (ss_sold_date_sk)
-      //  DISTRIBUTE BY ss_sold_date_sk
 
-  val writeQueries: Map[String, String] = Map(
+  // 準備 streaming 的上游資料表
+  val writeUpstreamTableQueries: Map[String, String] = Map(
     // Step 1 - Bulk load the starting point table
     "etl1-createTable" ->
       s"""
@@ -207,7 +206,27 @@ class ETLQueries(
       s"""
       DELETE FROM store_sales_denorm_${formatName} WHERE c_customer_sk = 221580
       """,
+
     )
+  val writeQueries: Map[String, String] = Map(
+      "etl7.1-createTableSourceSchema" ->
+      s"""
+      CREATE TABLE for_schema_store_sales_denorm_${formatName}
+      USING ${formatName}
+      LOCATION '${dbLocation}/for_schema_store_sales_denorm'
+      PARTITIONED BY (ss_sold_date_sk)
+      ${tblProperties}
+      AS SELECT * FROM `${sourceFormat}`.`${sourceLocation}store_sales_denorm` limit 10
+      """,
+    // Step 7 - create table
+    "etl7.2-createTableDownStreamTable" ->
+      s"""
+      CREATE TABLE clone_store_sales_denorm_${formatName}
+      LIKE for_schema_store_sales_denorm_${formatName}
+      USING ${formatName}
+      LOCATION '${dbLocation}/clone_store_sales_denorm'
+      """,
+  )
   val compactionWriteQueries: Map[String, String] = Map(
     // Step 8 - 進行 compaction
     "etl8-compaction" ->
