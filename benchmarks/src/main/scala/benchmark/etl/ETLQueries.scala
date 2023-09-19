@@ -182,53 +182,61 @@ class ETLQueries(
       AND a. ss_ticket_number = b. ss_ticket_number
       WHEN MATCHED THEN DELETE
       """,
-    // Step 4 - Remove the Small Delete data from the table
-    "etl4-deleteSmall" ->
+    // // Step 4 - Remove the Small Delete data from the table
+    // "etl4-deleteSmall" ->
+    //   s"""
+    //   MERGE INTO store_sales_denorm_${formatName} AS a
+    //   USING `${sourceFormat}`.`${sourceLocation}store_sales_denorm_delete_small` AS b
+    //   ON a.ss_sold_date_sk = b.ss_sold_date_sk
+    //   AND a.ss_item_sk = b.ss_item_sk
+    //   AND a. ss_ticket_number = b. ss_ticket_number
+    //   WHEN MATCHED THEN DELETE
+    //   """,
+    // // Step 5 - Remove the Medium Delete data from the table
+    // "etl5-deleteMedium" ->
+    //   s"""
+    //   MERGE INTO store_sales_denorm_${formatName} AS a
+    //   USING `${sourceFormat}`.`${sourceLocation}store_sales_denorm_delete_medium` AS b
+    //   ON a.ss_sold_date_sk = b.ss_sold_date_sk
+    //   AND a.ss_item_sk = b.ss_item_sk
+    //   AND a. ss_ticket_number = b. ss_ticket_number
+    //   WHEN MATCHED THEN DELETE
+    //   """,
+    // // Step 6 - Delete a Single Customer (GDPR request) from the table
+    // "etl6-deleteGdpr" ->
+    //   s"""
+    //   DELETE FROM store_sales_denorm_${formatName} WHERE c_customer_sk = 221580
+    //   """,
+    // Step 7 - create table
+    "etl7-createTable-clone-table" ->
       s"""
-      MERGE INTO store_sales_denorm_${formatName} AS a
-      USING `${sourceFormat}`.`${sourceLocation}store_sales_denorm_delete_small` AS b
-      ON a.ss_sold_date_sk = b.ss_sold_date_sk
-      AND a.ss_item_sk = b.ss_item_sk
-      AND a. ss_ticket_number = b. ss_ticket_number
-      WHEN MATCHED THEN DELETE
+      CREATE TABLE clone_store_sales_denorm_${formatName}
+      LIKE store_sales_denorm_${formatName}
+      USING ${formatName}
+      LOCATION '${dbLocation}/clone_store_sales_denorm'
       """,
-    // Step 5 - Remove the Medium Delete data from the table
-    "etl5-deleteMedium" ->
-      s"""
-      MERGE INTO store_sales_denorm_${formatName} AS a
-      USING `${sourceFormat}`.`${sourceLocation}store_sales_denorm_delete_medium` AS b
-      ON a.ss_sold_date_sk = b.ss_sold_date_sk
-      AND a.ss_item_sk = b.ss_item_sk
-      AND a. ss_ticket_number = b. ss_ticket_number
-      WHEN MATCHED THEN DELETE
-      """,
-    // Step 6 - Delete a Single Customer (GDPR request) from the table
-    "etl6-deleteGdpr" ->
-      s"""
-      DELETE FROM store_sales_denorm_${formatName} WHERE c_customer_sk = 221580
-      """
     )
   val compactionWriteQueries: Map[String, String] = Map(
-    // Step 7 - 進行 compaction
-    "etl7-compaction" ->
+    // Step 8 - 進行 compaction
+    "etl8-compaction" ->
       s"""
-      OPTIMIZE store_sales_denorm_${formatName}
+      OPTIMIZE clone_store_sales_denorm_${formatName}
       """
     )
 
   val zorderWriteQueries: Map[String, String] = Map(
-    // Step 8 - 進行 zorder
-    "etl8-zorder" ->
+    // Step 9 - 進行 zorder
+    "etl9-zorder" ->
       s"""
-      OPTIMIZE store_sales_denorm_${formatName} ZORDER BY (i_manufact_id)
+      OPTIMIZE clone_store_sales_denorm_${formatName} ZORDER BY (i_manufact_id)
       """
     )
     // TODO: 需要設定資料保留時間=0d
   val vacuumWriteQueries: Map[String, String] = Map(
-    // Step 9 - 進行 vacuum
-    "etl9-zorder" ->
+    // Step 10 - 進行 vacuum
+    "etl10-vacuum" ->
       s"""
-      VACUUM store_sales_denorm_${formatName}
+      VACUUM clone_store_sales_denorm_${formatName}
       """
     )
 

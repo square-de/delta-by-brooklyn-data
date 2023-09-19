@@ -29,6 +29,8 @@ experiment_type_zorder = "zorder"
 experiment_type_vacuum = "vacuum"
 experiment_type_all = "all"
 
+optimize_timing_batch = "batch"
+optimize_timing_streaming = "streaming"
 # Benchmark name to their specifications. See the imported benchmarks.py for details of benchmark.
 
 benchmarks = {
@@ -63,6 +65,13 @@ benchmarks = {
     "etl-1gb-delta-zorder": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_zorder),
     "etl-1gb-delta-vacuum": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_vacuum),
     "etl-1gb-delta-all": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_all),
+
+    # streaming optimization experiment
+    "sts-etl-1gb-delta": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, optimize_timing=optimize_timing_batch),
+    "sts-etl-1gb-delta-batch-compaction": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_compaction, optimize_timing=optimize_timing_batch),
+    "sts-etl-1gb-delta-batch-zorder": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_zorder, optimize_timing=optimize_timing_batch),
+    "sts-etl-1gb-delta-batch-vacuum": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_vacuum, optimize_timing=optimize_timing_batch),
+    "sts-etl-1gb-delta-batch-all": DeltaETLStreamingBenchmarkSpec(delta_version=delta_version, scale_in_gb=1, experiment=experiment_type_all, optimize_timing=optimize_timing_batch),
 
     "etl-1tb-delta": DeltaETLBenchmarkSpec(delta_version=delta_version, scale_in_gb=1000),
 

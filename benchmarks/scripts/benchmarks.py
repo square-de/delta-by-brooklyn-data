@@ -132,6 +132,21 @@ class ETLBenchmarkSpec(BenchmarkSpec):
             "--experiment", experiment
         ])
 
+class ETLStreamingBenchmarkSpec(BenchmarkSpec):
+    """
+    Specifications of ETL benchmark
+    """
+    def __init__(self, scale_in_gb, write_mode, experiment=None, optimize_timing=None,**kwargs):
+        # forward all keyword args to next constructor
+        super().__init__(benchmark_main_class="benchmark.ETLStreamingBenchmark", **kwargs)
+        # after init of super class, use the format to add main class args
+        self.benchmark_main_class_args.extend([
+            "--format", self.format_name,
+            "--scale-in-gb", str(scale_in_gb),
+            "--experiment", experiment,
+            "--optimize-timing", optimize_timing
+        ])
+
 class ETLDataPrepSpec(BenchmarkSpec):
     """
     Specifications of ETL benchmark data preparation process.
@@ -196,6 +211,10 @@ class DeltaTPCDSBenchmarkSpec(TPCDSBenchmarkSpec, DeltaBenchmarkSpec):
 class DeltaETLBenchmarkSpec(ETLBenchmarkSpec, DeltaBenchmarkSpec):
     def __init__(self, delta_version, scale_in_gb=1, write_mode="copy-on-write", experiment="control"):
         super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode, experiment=experiment)
+
+class DeltaETLStreamingBenchmarkSpec(ETLStreamingBenchmarkSpec, DeltaBenchmarkSpec):
+    def __init__(self, delta_version, scale_in_gb=1, write_mode="copy-on-write", experiment="control", optimize_timing="batch"):
+        super().__init__(delta_version=delta_version, scale_in_gb=scale_in_gb, write_mode=write_mode, experiment=experiment, optimize_timing=optimize_timing)
 
 
 # ============== Hudi benchmark specifications ==============

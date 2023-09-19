@@ -23,6 +23,11 @@ lazy val root = (project in file("."))
     libraryDependencies += "org.apache.spark" %% "spark-sql" % "3.3.2" % "provided",
     libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.1",
     libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.13.1",
+    libraryDependencies += "io.delta" %% "delta-core" % "2.4.0",
+    // libraryDependencies += "org.apache.hadoop" %% "hadoop-common" % "3.3.6",
+    libraryDependencies += "org.apache.hadoop" % "hadoop-common" % "3.2.0",
+    libraryDependencies += "org.apache.hadoop" % "hadoop-hdfs-client" % "3.2.0",
+
 
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", xs @ _*) => MergeStrategy.discard
