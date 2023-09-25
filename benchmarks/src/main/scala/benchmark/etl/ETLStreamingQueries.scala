@@ -239,7 +239,7 @@ class ETLStreamingQueries(
     // Step 9 - 進行 zorder
     "etl9-zorder" ->
       s"""
-      OPTIMIZE clone_store_sales_denorm_${formatName} ZORDER BY (i_manufact_id)
+      OPTIMIZE clone_store_sales_denorm_${formatName} ZORDER BY (ss_coupon_amt)
       """
     )
     // TODO: 需要設定資料保留時間=0d
